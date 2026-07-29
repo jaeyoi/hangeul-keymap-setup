@@ -1,13 +1,23 @@
 #!/bin/sh
 #
 # hangeul-keymap-setup.sh
-# 오른쪽 커맨드(⌘) 키를 F18로 리매핑해서 한/영 전환 키로 쓸 수 있게 해주는 스크립트
+# 오른쪽 커맨드(⌘) 등의 키를 F18로 리매핑해서 한/영 전환 키로 쓸 수 있게 해주는 스크립트
 #
 # 사용법:
-#   sudo ./hangeul-keymap-setup.sh install              - 연결된 모든 키보드에 적용
+#   sudo ./hangeul-keymap-setup.sh install               - 연결된 모든 키보드에 적용
 #   sudo ./hangeul-keymap-setup.sh install --device      - 특정 키보드 한 대에만 적용 (목록에서 선택)
 #   sudo ./hangeul-keymap-setup.sh list                  - 연결된 HID 장치 목록만 확인
 #   sudo ./hangeul-keymap-setup.sh uninstall             - 제거
+#
+# 어떤 키를 쓸지 고르는 옵션 (install에 함께 붙입니다. 여러 개 동시 지정 가능):
+#   --right-cmd     오른쪽 커맨드(⌘) 키   [옵션을 안 주면 이게 기본값]
+#   --right-alt     오른쪽 Alt(Option) 키
+#   --hangul-key    한/영 전용 키 (HID LANG1)
+#
+#   윈도우용 키보드처럼 오른쪽 커맨드가 없는 경우:
+#     sudo ./hangeul-keymap-setup.sh install --device --right-alt --hangul-key
+#   한글 배열 키보드의 한/영 키는 모델에 따라 LANG1을 보내기도 하고 오른쪽 Alt로
+#   인식되기도 해서, 둘 다 걸어두면 어느 쪽이든 동작합니다.
 #
 # 설치 후 반드시 해야 할 일:
 #   시스템 설정 > 키보드 > 키보드 단축키 > 입력 소스
@@ -34,13 +44,19 @@
 #   마세요. --device 모드에서 입력을 받지 못해 동작하지 않기도 합니다.
 #
 # License: MIT
-# Copyright (c) 2026 Jo Jaeyong
+# Copyright (c) 2026 <your name>
 #
 
 set -e
 
 LABEL="local.hangeul-keymap"
 PLIST_PATH="/Library/LaunchDaemons/${LABEL}.plist"
+
+# HID Usage 코드
+DST_F18="0x70000006D"          # F18 (F13~F20 = 0x...68 ~ 0x...6F)
+SRC_RIGHT_CMD="0x7000000E7"    # 오른쪽 커맨드 (윈도우 키보드의 오른쪽 Win 키도 같은 값)
+SRC_RIGHT_ALT="0x7000000E6"    # 오른쪽 Alt/Option
+SRC_HANGUL="0x700000090"       # 한/영 전용 키 (LANG1)
 
 require_root() {
   if [ "$(id -u)" -ne 0 ]; then
@@ -58,10 +74,33 @@ list_devices() {
   echo "예: VendorID 0x004c, ProductID 0x0267 처럼 0x로 시작하는 값입니다."
 }
 
+add_src_key() {
+  # $1 = HID 코드, $2 = 사람이 읽을 이름. 같은 키를 두 번 지정하면 무시합니다.
+  case " ${SRC_LIST} " in
+    *" $1 "*) return 0 ;;
+  esac
+  SRC_LIST="${SRC_LIST}$1 "
+  if [ -z "${SRC_NAMES}" ]; then
+    SRC_NAMES="$2"
+  else
+    SRC_NAMES="${SRC_NAMES}, $2"
+  fi
+}
+
 build_mapping_json() {
   # $1 = "all" 또는 "device"
   # $2, $3 = device 모드일 때 VendorID, ProductID
-  BASE_MAPPING='"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x7000000E7,"HIDKeyboardModifierMappingDst":0x70000006D}]'
+  # SRC_LIST 전역 변수에 담긴 키들을 모두 F18로 매핑합니다.
+  ENTRIES=""
+  for SRC in ${SRC_LIST}; do
+    ENTRY="{\"HIDKeyboardModifierMappingSrc\":${SRC},\"HIDKeyboardModifierMappingDst\":${DST_F18}}"
+    if [ -z "${ENTRIES}" ]; then
+      ENTRIES="${ENTRY}"
+    else
+      ENTRIES="${ENTRIES},${ENTRY}"
+    fi
+  done
+  BASE_MAPPING="\"UserKeyMapping\":[${ENTRIES}]"
 
   if [ "$1" = "device" ]; then
     echo "{${BASE_MAPPING},\"HIDMatch\":{\"VendorID\":$2,\"ProductID\":$3}}"
@@ -74,9 +113,30 @@ install_keymap() {
   SCOPE="all"
   VENDOR_ID=""
   PRODUCT_ID=""
+  SRC_LIST=""
+  SRC_NAMES=""
 
-  if [ "$1" = "--device" ]; then
-    SCOPE="device"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --device)     SCOPE="device" ;;
+      --right-cmd)  add_src_key "${SRC_RIGHT_CMD}" "오른쪽 커맨드(⌘)" ;;
+      --right-alt)  add_src_key "${SRC_RIGHT_ALT}" "오른쪽 Alt(Option)" ;;
+      --hangul-key) add_src_key "${SRC_HANGUL}" "한/영 키" ;;
+      *)
+        echo "알 수 없는 옵션: $1" >&2
+        echo "사용 가능한 옵션: --device, --right-cmd, --right-alt, --hangul-key" >&2
+        exit 1
+        ;;
+    esac
+    shift
+  done
+
+  # 아무 키도 지정하지 않으면 오른쪽 커맨드를 기본값으로 사용
+  if [ -z "${SRC_LIST}" ]; then
+    add_src_key "${SRC_RIGHT_CMD}" "오른쪽 커맨드(⌘)"
+  fi
+
+  if [ "$SCOPE" = "device" ]; then
     list_devices
     echo ""
     printf "적용할 키보드의 VendorID (예: 0x004c): "
@@ -92,6 +152,8 @@ install_keymap() {
 
   MAPPING_JSON=$(build_mapping_json "$SCOPE" "$VENDOR_ID" "$PRODUCT_ID")
 
+  echo ""
+  echo "리매핑할 키: ${SRC_NAMES} -> F18"
   echo ""
   echo "1) ${PLIST_PATH} 생성 중..."
   cat <<EOF > "${PLIST_PATH}"
@@ -125,20 +187,21 @@ EOF
   echo ""
   if [ "$SCOPE" = "device" ]; then
     echo "설치 완료. VendorID ${VENDOR_ID} / ProductID ${PRODUCT_ID} 키보드에서만"
-    echo "오른쪽 커맨드 키가 F18로 동작합니다. 다른 키보드는 영향받지 않습니다."
+    echo "${SRC_NAMES} 키가 F18로 동작합니다. 다른 키보드는 영향받지 않습니다."
   else
-    echo "설치 완료. 연결된 모든 키보드에서 오른쪽 커맨드 키가 F18로 동작합니다."
+    echo "설치 완료. 연결된 모든 키보드에서 ${SRC_NAMES} 키가 F18로 동작합니다."
   fi
   echo ""
   echo "================================================================"
   echo " 이제 시스템 설정에서 아래 순서대로 마무리해주세요"
   echo "================================================================"
   echo ""
-  echo "[1] 오른쪽 커맨드 키를 한/영 전환 키로 등록 (필수)"
+  echo "[1] F18을 한/영 전환 단축키로 등록 (필수)"
   echo "    시스템 설정 > 키보드 > 키보드 단축키... > 입력 소스"
   echo "    '이전 입력 소스 선택' 항목을 더블클릭한 뒤"
-  echo "    오른쪽 커맨드 키를 누르면 F18로 등록됩니다."
+  echo "    ${SRC_NAMES} 키를 누르면 F18로 등록됩니다."
   echo "    (체크박스가 꺼져 있다면 함께 켜주세요)"
+  echo "    여러 키를 지정했다면 아무 키나 하나만 눌러 등록하면 됩니다."
   echo ""
   echo "[2] Caps Lock 한/영 전환 끄기 (권장)"
   echo "    시스템 설정 > 키보드 > 텍스트 입력 > 입력 소스 옆 [편집...]"
@@ -155,7 +218,7 @@ EOF
   echo "    이 설정은 키보드별로 따로 저장되므로, 창 위쪽 '적용 대상'에서"
   echo "    사용 중인 키보드를 각각 선택해 설정해야 합니다."
   echo ""
-  echo "[2]번을 끄지 않으면 Caps Lock과 오른쪽 커맨드 두 곳에서 입력 소스가"
+  echo "[2]번을 끄지 않으면 Caps Lock과 새로 지정한 키 두 곳에서 입력 소스가"
   echo "바뀌면서 현재 상태를 착각하기 쉬우니 함께 정리하는 걸 권합니다."
   echo "================================================================"
 }
@@ -179,7 +242,7 @@ uninstall_keymap() {
   hidutil property --set '{"UserKeyMapping":[]}' >/dev/null 2>&1 || true
 
   echo ""
-  echo "제거 완료. 오른쪽 커맨드 키가 원래대로 동작합니다."
+  echo "제거 완료. 리매핑했던 키가 모두 원래대로 동작합니다."
   echo "(그래도 F18로 인식된다면 재부팅하면 확실히 초기화됩니다)"
   echo ""
   echo "================================================================"
@@ -214,7 +277,8 @@ uninstall_keymap() {
 case "$1" in
   install)
     require_root "$@"
-    install_keymap "$2"
+    shift
+    install_keymap "$@"
     ;;
   uninstall)
     require_root "$@"
@@ -224,7 +288,16 @@ case "$1" in
     list_devices
     ;;
   *)
-    echo "사용법: sudo $0 [install|install --device|uninstall|list]" >&2
+    echo "사용법: sudo $0 [install|uninstall|list]" >&2
+    echo "" >&2
+    echo "install 옵션:" >&2
+    echo "  --device        특정 키보드 한 대에만 적용 (목록에서 선택)" >&2
+    echo "  --right-cmd     오른쪽 커맨드(⌘) 키를 사용 [기본값]" >&2
+    echo "  --right-alt     오른쪽 Alt(Option) 키를 사용" >&2
+    echo "  --hangul-key    한/영 전용 키(LANG1)를 사용" >&2
+    echo "" >&2
+    echo "예) 윈도우용 키보드 한 대에만 적용:" >&2
+    echo "  sudo $0 install --device --right-alt --hangul-key" >&2
     exit 1
     ;;
 esac
