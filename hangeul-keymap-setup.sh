@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # hangeul-keymap-setup.sh
-# 오른쪽 커맨드(⌘) 등의 키를 F18로 리매핑해서 한/영 전환 키로 쓸 수 있게 해주는 스크립트
+# 오른쪽 커맨드(⌘) 등의 키를 F17로 리매핑해서 한/영 전환 키로 쓸 수 있게 해주는 스크립트
 #
 # 사용법:
 #   sudo ./hangeul-keymap-setup.sh install               - 연결된 모든 키보드에 적용
@@ -13,16 +13,18 @@
 #   --right-cmd     오른쪽 커맨드(⌘) 키   [옵션을 안 주면 이게 기본값]
 #   --right-alt     오른쪽 Alt(Option) 키
 #   --hangul-key    한/영 전용 키 (HID LANG1)
+#   --dst <F13~F19> 리매핑 대상 키       [옵션을 안 주면 F17이 기본값]
 #
 #   윈도우용 키보드처럼 오른쪽 커맨드가 없는 경우:
 #     sudo ./hangeul-keymap-setup.sh install --device --right-alt --hangul-key
 #   한글 배열 키보드의 한/영 키는 모델에 따라 LANG1을 보내기도 하고 오른쪽 Alt로
 #   인식되기도 해서, 둘 다 걸어두면 어느 쪽이든 동작합니다.
+#   F17을 다른 용도(Stream Deck 등)로 이미 쓰고 있다면 --dst로 다른 키를 고르세요.
 #
 # 설치 후 반드시 해야 할 일:
 #   시스템 설정 > 키보드 > 키보드 단축키 > 입력 소스
 #   에서 "이전 입력 소스 선택" 단축키를 더블클릭한 뒤 오른쪽 커맨드 키를 눌러
-#   F18로 등록해야 실제로 한/영 전환이 동작합니다.
+#   F17로 등록해야 실제로 한/영 전환이 동작합니다.
 #
 #   그리고 Caps Lock 한/영 전환을 꺼두는 걸 권장합니다.
 #   (전환 키가 두 개면 입력 소스 상태가 꼬이기 쉽습니다)
@@ -53,10 +55,44 @@ LABEL="local.hangeul-keymap"
 PLIST_PATH="/Library/LaunchDaemons/${LABEL}.plist"
 
 # HID Usage 코드
-DST_F18="0x70000006D"          # F18 (F13~F20 = 0x...68 ~ 0x...6F)
 SRC_RIGHT_CMD="0x7000000E7"    # 오른쪽 커맨드 (윈도우 키보드의 오른쪽 Win 키도 같은 값)
 SRC_RIGHT_ALT="0x7000000E6"    # 오른쪽 Alt/Option
 SRC_HANGUL="0x700000090"       # 한/영 전용 키 (LANG1)
+
+# 리매핑 대상 키 (F13~F19). macOS 단축키 레코더가 인식하면서
+# 물리 키보드에 거의 없는 구간이 이 대역뿐이라 여기서 고른다.
+# F20은 HID 코드는 있지만 macOS Sequoia의 '이전 입력 소스 선택' 입력 칸이
+# 등록을 받아주지 않아(실측 확인) 목록에서 제외했다.
+# F21 이상은 macOS에 virtual keycode 자체가 없어 사용할 수 없다.
+DST_DEFAULT_NAME="F17"
+
+dst_code_for() {
+  # $1 = F13~F19 (대소문자 무관). 유효하지 않으면 빈 문자열 반환
+  case "$(echo "$1" | tr 'a-z' 'A-Z')" in
+    F13) echo "0x700000068" ;;
+    F14) echo "0x700000069" ;;
+    F15) echo "0x70000006A" ;;
+    F16) echo "0x70000006B" ;;
+    F17) echo "0x70000006C" ;;
+    F18) echo "0x70000006D" ;;
+    F19) echo "0x70000006E" ;;
+    *)   echo "" ;;
+  esac
+}
+
+dst_name_for() {
+  # $1 = HID 코드 (0x... 형태). 유효하지 않으면 빈 문자열 반환
+  case "$1" in
+    0x700000068) echo "F13" ;;
+    0x700000069) echo "F14" ;;
+    0x70000006A) echo "F15" ;;
+    0x70000006B) echo "F16" ;;
+    0x70000006C) echo "F17" ;;
+    0x70000006D) echo "F18" ;;
+    0x70000006E) echo "F19" ;;
+    *)           echo "" ;;
+  esac
+}
 
 require_root() {
   if [ "$(id -u)" -ne 0 ]; then
@@ -90,10 +126,10 @@ add_src_key() {
 build_mapping_json() {
   # $1 = "all" 또는 "device"
   # $2, $3 = device 모드일 때 VendorID, ProductID
-  # SRC_LIST 전역 변수에 담긴 키들을 모두 F18로 매핑합니다.
+  # SRC_LIST 전역 변수에 담긴 키들을 모두 DST_CODE(전역 변수)로 매핑합니다.
   ENTRIES=""
   for SRC in ${SRC_LIST}; do
-    ENTRY="{\"HIDKeyboardModifierMappingSrc\":${SRC},\"HIDKeyboardModifierMappingDst\":${DST_F18}}"
+    ENTRY="{\"HIDKeyboardModifierMappingSrc\":${SRC},\"HIDKeyboardModifierMappingDst\":${DST_CODE}}"
     if [ -z "${ENTRIES}" ]; then
       ENTRIES="${ENTRY}"
     else
@@ -115,6 +151,7 @@ install_keymap() {
   PRODUCT_ID=""
   SRC_LIST=""
   SRC_NAMES=""
+  DST_NAME="${DST_DEFAULT_NAME}"
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -122,9 +159,17 @@ install_keymap() {
       --right-cmd)  add_src_key "${SRC_RIGHT_CMD}" "오른쪽 커맨드(⌘)" ;;
       --right-alt)  add_src_key "${SRC_RIGHT_ALT}" "오른쪽 Alt(Option)" ;;
       --hangul-key) add_src_key "${SRC_HANGUL}" "한/영 키" ;;
+      --dst)
+        shift
+        if [ $# -eq 0 ]; then
+          echo "--dst 뒤에 키 이름이 필요합니다 (F13~F19)" >&2
+          exit 1
+        fi
+        DST_NAME="$(echo "$1" | tr 'a-z' 'A-Z')"
+        ;;
       *)
         echo "알 수 없는 옵션: $1" >&2
-        echo "사용 가능한 옵션: --device, --right-cmd, --right-alt, --hangul-key" >&2
+        echo "사용 가능한 옵션: --device, --right-cmd, --right-alt, --hangul-key, --dst" >&2
         exit 1
         ;;
     esac
@@ -134,6 +179,13 @@ install_keymap() {
   # 아무 키도 지정하지 않으면 오른쪽 커맨드를 기본값으로 사용
   if [ -z "${SRC_LIST}" ]; then
     add_src_key "${SRC_RIGHT_CMD}" "오른쪽 커맨드(⌘)"
+  fi
+
+  DST_CODE="$(dst_code_for "${DST_NAME}")"
+  if [ -z "${DST_CODE}" ]; then
+    echo "알 수 없는 대상 키: ${DST_NAME}" >&2
+    echo "사용 가능한 값: F13 F14 F15 F16 F17 F18 F19" >&2
+    exit 1
   fi
 
   if [ "$SCOPE" = "device" ]; then
@@ -153,8 +205,21 @@ install_keymap() {
   MAPPING_JSON=$(build_mapping_json "$SCOPE" "$VENDOR_ID" "$PRODUCT_ID")
 
   echo ""
-  echo "리매핑할 키: ${SRC_NAMES} -> F18"
+  echo "리매핑할 키: ${SRC_NAMES} -> ${DST_NAME}"
   echo ""
+
+  if [ -f "${PLIST_PATH}" ]; then
+    OLD_CODE="$(grep -o '"HIDKeyboardModifierMappingDst":0x[0-9A-Fa-f]*' "${PLIST_PATH}" \
+                | head -n 1 | cut -d: -f2)"
+    OLD_NAME="$(dst_name_for "${OLD_CODE}")"
+    if [ -n "${OLD_NAME}" ] && [ "${OLD_NAME}" != "${DST_NAME}" ]; then
+      echo "※ 이전에 ${OLD_NAME}(으)로 설치되어 있었습니다. 대상 키가 ${DST_NAME}(으)로 바뀝니다."
+      echo "  시스템 설정의 '이전 입력 소스 선택' 단축키를 아래 [1]번대로 다시 등록해야 합니다."
+      echo "  이전 설정을 유지하려면: sudo $0 install --dst ${OLD_NAME}"
+      echo ""
+    fi
+  fi
+
   echo "1) ${PLIST_PATH} 생성 중..."
   cat <<EOF > "${PLIST_PATH}"
 <?xml version="1.0" encoding="UTF-8"?>
@@ -187,19 +252,19 @@ EOF
   echo ""
   if [ "$SCOPE" = "device" ]; then
     echo "설치 완료. VendorID ${VENDOR_ID} / ProductID ${PRODUCT_ID} 키보드에서만"
-    echo "${SRC_NAMES} 키가 F18로 동작합니다. 다른 키보드는 영향받지 않습니다."
+    echo "${SRC_NAMES} 키가 ${DST_NAME}로 동작합니다. 다른 키보드는 영향받지 않습니다."
   else
-    echo "설치 완료. 연결된 모든 키보드에서 ${SRC_NAMES} 키가 F18로 동작합니다."
+    echo "설치 완료. 연결된 모든 키보드에서 ${SRC_NAMES} 키가 ${DST_NAME}로 동작합니다."
   fi
   echo ""
   echo "================================================================"
   echo " 이제 시스템 설정에서 아래 순서대로 마무리해주세요"
   echo "================================================================"
   echo ""
-  echo "[1] F18을 한/영 전환 단축키로 등록 (필수)"
+  echo "[1] ${DST_NAME}를 한/영 전환 단축키로 등록 (필수)"
   echo "    시스템 설정 > 키보드 > 키보드 단축키... > 입력 소스"
   echo "    '이전 입력 소스 선택' 항목을 더블클릭한 뒤"
-  echo "    ${SRC_NAMES} 키를 누르면 F18로 등록됩니다."
+  echo "    ${SRC_NAMES} 키를 누르면 ${DST_NAME}로 등록됩니다."
   echo "    (체크박스가 꺼져 있다면 함께 켜주세요)"
   echo "    여러 키를 지정했다면 아무 키나 하나만 눌러 등록하면 됩니다."
   echo ""
@@ -224,6 +289,16 @@ EOF
 }
 
 uninstall_keymap() {
+  DST_NAME=""
+  if [ -f "${PLIST_PATH}" ]; then
+    OLD_CODE="$(grep -o '"HIDKeyboardModifierMappingDst":0x[0-9A-Fa-f]*' "${PLIST_PATH}" \
+                | head -n 1 | cut -d: -f2)"
+    DST_NAME="$(dst_name_for "${OLD_CODE}")"
+  fi
+  if [ -z "${DST_NAME}" ]; then
+    DST_NAME="F13~F19 중 지정했던 키"
+  fi
+
   echo "1) launchd에서 제거 중..."
   launchctl bootout system "${PLIST_PATH}" 2>/dev/null || true
 
@@ -243,7 +318,7 @@ uninstall_keymap() {
 
   echo ""
   echo "제거 완료. 리매핑했던 키가 모두 원래대로 동작합니다."
-  echo "(그래도 F18로 인식된다면 재부팅하면 확실히 초기화됩니다)"
+  echo "(그래도 ${DST_NAME}로 인식된다면 재부팅하면 확실히 초기화됩니다)"
   echo ""
   echo "================================================================"
   echo " 시스템 설정 되돌리기"
@@ -251,13 +326,13 @@ uninstall_keymap() {
   echo "이 스크립트는 키 리매핑만 제거하며, 설치할 때 사람이 직접 바꾼"
   echo "시스템 설정은 그대로 남아 있습니다. 아래 항목을 확인해주세요."
   echo ""
-  echo "[1] F18로 지정했던 한/영 전환 단축키 되돌리기"
+  echo "[1] ${DST_NAME}로 지정했던 한/영 전환 단축키 되돌리기"
   echo "    시스템 설정 > 키보드 > 키보드 단축키... > 입력 소스"
   echo "    '이전 입력 소스 선택'을 더블클릭한 뒤 원하는 키 조합"
   echo "    (macOS 기본값은 Control + Space)을 다시 눌러 지정합니다."
   echo "    같은 화면 아래 '기본값 복원'을 눌러도 되지만, 그 화면의 다른"
   echo "    단축키까지 함께 초기화되니 주의하세요."
-  echo "    ※ 그대로 두면 F18은 눌리지 않는 키라 단축키만 비어 있게 됩니다."
+  echo "    ※ 그대로 두면 ${DST_NAME}는 눌리지 않는 키라 단축키만 비어 있게 됩니다."
   echo ""
   echo "[2] Caps Lock 한/영 전환 다시 켜기"
   echo "    설치할 때 껐다면,"
@@ -295,6 +370,7 @@ case "$1" in
     echo "  --right-cmd     오른쪽 커맨드(⌘) 키를 사용 [기본값]" >&2
     echo "  --right-alt     오른쪽 Alt(Option) 키를 사용" >&2
     echo "  --hangul-key    한/영 전용 키(LANG1)를 사용" >&2
+    echo "  --dst <F13~F19> 리매핑 대상 키 (기본값: F17)" >&2
     echo "" >&2
     echo "예) 윈도우용 키보드 한 대에만 적용:" >&2
     echo "  sudo $0 install --device --right-alt --hangul-key" >&2
