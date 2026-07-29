@@ -34,7 +34,7 @@
 #   마세요. --device 모드에서 입력을 받지 못해 동작하지 않기도 합니다.
 #
 # License: MIT
-# Copyright (c) 2026 <your name>
+# Copyright (c) 2026 Jo Jaeyong
 #
 
 set -e
