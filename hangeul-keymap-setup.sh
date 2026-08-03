@@ -12,11 +12,11 @@
 # 어떤 키를 쓸지 고르는 옵션 (install에 함께 붙입니다. 여러 개 동시 지정 가능):
 #   --right-cmd     오른쪽 커맨드(⌘) 키   [옵션을 안 주면 이게 기본값]
 #   --right-alt     오른쪽 Alt(Option) 키
-#   --hangul-key    한/영 전용 키 (HID LANG1)
+#   --hangeul-key   한/영 전용 키 (HID LANG1)
 #   --dst <F13~F19> 리매핑 대상 키       [옵션을 안 주면 F17이 기본값]
 #
 #   윈도우용 키보드처럼 오른쪽 커맨드가 없는 경우:
-#     sudo ./hangeul-keymap-setup.sh install --device --right-alt --hangul-key
+#     sudo ./hangeul-keymap-setup.sh install --device --right-alt --hangeul-key
 #   한글 배열 키보드의 한/영 키는 모델에 따라 LANG1을 보내기도 하고 오른쪽 Alt로
 #   인식되기도 해서, 둘 다 걸어두면 어느 쪽이든 동작합니다.
 #   F17을 다른 용도(Stream Deck 등)로 이미 쓰고 있다면 --dst로 다른 키를 고르세요.
@@ -57,7 +57,7 @@ PLIST_PATH="/Library/LaunchDaemons/${LABEL}.plist"
 # HID Usage 코드
 SRC_RIGHT_CMD="0x7000000E7"    # 오른쪽 커맨드 (윈도우 키보드의 오른쪽 Win 키도 같은 값)
 SRC_RIGHT_ALT="0x7000000E6"    # 오른쪽 Alt/Option
-SRC_HANGUL="0x700000090"       # 한/영 전용 키 (LANG1)
+SRC_HANGEUL="0x700000090"      # 한/영 전용 키 (LANG1)
 
 # 리매핑 대상 키 (F13~F19). macOS 단축키 레코더가 인식하면서
 # 물리 키보드에 거의 없는 구간이 이 대역뿐이라 여기서 고른다.
@@ -158,7 +158,7 @@ install_keymap() {
       --device)     SCOPE="device" ;;
       --right-cmd)  add_src_key "${SRC_RIGHT_CMD}" "오른쪽 커맨드(⌘)" ;;
       --right-alt)  add_src_key "${SRC_RIGHT_ALT}" "오른쪽 Alt(Option)" ;;
-      --hangul-key) add_src_key "${SRC_HANGUL}" "한/영 키" ;;
+      --hangeul-key) add_src_key "${SRC_HANGEUL}" "한/영 키" ;;
       --dst)
         shift
         if [ $# -eq 0 ]; then
@@ -169,7 +169,7 @@ install_keymap() {
         ;;
       *)
         echo "알 수 없는 옵션: $1" >&2
-        echo "사용 가능한 옵션: --device, --right-cmd, --right-alt, --hangul-key, --dst" >&2
+        echo "사용 가능한 옵션: --device, --right-cmd, --right-alt, --hangeul-key, --dst" >&2
         exit 1
         ;;
     esac
@@ -369,11 +369,11 @@ case "$1" in
     echo "  --device        특정 키보드 한 대에만 적용 (목록에서 선택)" >&2
     echo "  --right-cmd     오른쪽 커맨드(⌘) 키를 사용 [기본값]" >&2
     echo "  --right-alt     오른쪽 Alt(Option) 키를 사용" >&2
-    echo "  --hangul-key    한/영 전용 키(LANG1)를 사용" >&2
+    echo "  --hangeul-key   한/영 전용 키(LANG1)를 사용" >&2
     echo "  --dst <F13~F19> 리매핑 대상 키 (기본값: F17)" >&2
     echo "" >&2
     echo "예) 윈도우용 키보드 한 대에만 적용:" >&2
-    echo "  sudo $0 install --device --right-alt --hangul-key" >&2
+    echo "  sudo $0 install --device --right-alt --hangeul-key" >&2
     exit 1
     ;;
 esac

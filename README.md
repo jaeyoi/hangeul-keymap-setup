@@ -21,7 +21,7 @@ Karabiner-Elements 같은 별도 앱이나 커널 확장 없이, macOS에 기본
 |---|---|
 | `--right-cmd` | 오른쪽 커맨드(⌘) — 옵션을 안 주면 기본값 |
 | `--right-alt` | 오른쪽 Alt(Option) |
-| `--hangul-key` | 한/영 전용 키 (HID LANG1) |
+| `--hangeul-key` | 한/영 전용 키 (HID LANG1) |
 
 여러 개를 동시에 지정할 수 있고, 지정한 키는 모두 매핑 대상 키(기본값 F17,
 `--dst`로 변경 가능)를 보냅니다. 여러 키를 지정했더라도 시스템 설정에는
@@ -35,7 +35,7 @@ Karabiner-Elements 같은 별도 앱이나 커널 확장 없이, macOS에 기본
 | 애플 키보드 / 맥용 배열 | 옵션 없이 기본값 (오른쪽 커맨드) |
 | 윈도우용 풀사이즈 104키 | 기본값 그대로. 스페이스 오른쪽의 오른쪽 Win 키가 오른쪽 커맨드와 같은 HID 코드(`0x7000000E7`)를 보냅니다 |
 | 오른쪽 Win 키가 없는 배열 (텐키리스 일부, 노트북 등) | `--right-alt` |
-| 한글 배열 (한/영 키가 따로 있음) | `--right-alt --hangul-key` 둘 다 |
+| 한글 배열 (한/영 키가 따로 있음) | `--right-alt --hangeul-key` 둘 다 |
 | 어느 쪽인지 모르겠음 | 세 개 다 지정해도 무방합니다 |
 
 한글 배열 키보드의 한/영 키는 모델에 따라 LANG1을 보내기도 하고 101키 호환
@@ -88,7 +88,7 @@ sudo ./hangeul-keymap-setup.sh install
 sudo ./hangeul-keymap-setup.sh install --device
 
 # 3) 윈도우용/한글 배열 키보드 한 대에 여러 키 지정
-sudo ./hangeul-keymap-setup.sh install --device --right-alt --hangul-key
+sudo ./hangeul-keymap-setup.sh install --device --right-alt --hangeul-key
 ```
 
 `--device`를 쓰면 연결된 HID 장치 목록이 출력되고, 적용할 키보드의
@@ -114,7 +114,7 @@ VendorID / ProductID를 입력받습니다. 내장 키보드는 그대로 두고
 | `--device` | 특정 키보드 한 대에만 적용 (목록에서 선택) |
 | `--right-cmd` | 오른쪽 커맨드(⌘) 키를 사용 |
 | `--right-alt` | 오른쪽 Alt(Option) 키를 사용 |
-| `--hangul-key` | 한/영 전용 키(LANG1)를 사용 |
+| `--hangeul-key` | 한/영 전용 키(LANG1)를 사용 |
 | `--dst <F13~F19>` | 리매핑 대상 키를 지정 (기본값 `F17`) |
 
 키 옵션은 여러 개를 동시에 지정할 수 있고, 같은 옵션을 중복 지정해도
@@ -203,7 +203,7 @@ sudo launchctl print system/local.hangeul-keymap
   것입니다. 위 [제대로 적용됐는지 확인](#제대로-적용됐는지-확인)으로 확인하고,
   안 잡혀 있으면 `install`을 다시 실행하세요.
 - **내 키보드의 한/영 키가 LANG1인지 오른쪽 Alt인지 모르겠다** —
-  `--right-alt --hangul-key`를 함께 지정하면 어느 쪽이든 동작합니다. 실제로
+  `--right-alt --hangeul-key`를 함께 지정하면 어느 쪽이든 동작합니다. 실제로
   보내는 쪽만 매핑되고 나머지는 아무 영향이 없습니다.
 - **`--device`로 설치했는데 안 먹는다** — 목록에서 고른 VendorID/ProductID가
   실제 사용 중인 키보드가 맞는지 `list`로 다시 확인하세요. 무선 키보드는
@@ -231,7 +231,7 @@ LaunchDaemon을 내리고 plist를 지운 뒤 현재 세션의 리매핑까지 �
 
 `/Library/LaunchDaemons/local.hangeul-keymap.plist`를 만들어, 부팅 시
 아래와 같은 명령이 실행되도록 등록합니다. 지정한 키가 여러 개면 그만큼
-엔트리가 늘어납니다. 예를 들어 `--right-alt --hangul-key`로 설치하면:
+엔트리가 늘어납니다. 예를 들어 `--right-alt --hangeul-key`로 설치하면:
 
 ```
 hidutil property --set '{"UserKeyMapping":[
